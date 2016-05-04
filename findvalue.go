@@ -1,9 +1,5 @@
 package kademlia
 
-import (
-	"log"
-)
-
 type FindValueRequest struct {
 	RPCHeader
 	Target NodeID
@@ -22,14 +18,13 @@ func (k *Kademlia) NewFindValueRequest(target NodeID) FindValueRequest {
 type FindValueResponse struct {
 	RPCHeader
 	Contacts Contacts
-	Value    string
+	Value    []byte
 }
 
-func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, string,
-	error) {
+func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, []byte, error) {
 	client, err := dialContact(contact)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	req := k.NewFindValueRequest(target)
@@ -37,7 +32,7 @@ func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, string,
 
 	err = client.Call("KademliaCore.FindValueRPC", &req, &res)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
 
 	return res.Contacts, res.Value, nil
@@ -49,14 +44,15 @@ func (kc *KademliaCore) FindValueRPC(req FindValueRequest, res *FindValueRespons
 		return err
 	}
 
-	value, err := kc.kad.valuesDB.Get(req.Target[:], nil)
+	value, err := kc.kad.Storage.Get(req.Target)
 	if err != nil {
-		log.Println(err)
-		panic("Read from values database failed")
+		//log.Println(err)
+		//panic("Read from values database failed")
+		return err
 	}
 
 	if value != nil {
-		res.Value = string(value)
+		res.Value = value
 		return nil
 	}
 

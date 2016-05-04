@@ -1,43 +1,30 @@
 package kademlia
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	db "github.com/syndtr/goleveldb/leveldb"
-	"log"
 	"net"
 	"net/rpc"
 	"time"
 )
 
-const (
-	VALUES_DB_PATH = "db/values-"
-)
+type KademliaStorage interface {
+	Put(key NodeID, value []byte) error
+	Get(key NodeID) (value []byte, err error)
+}
 
 type Kademlia struct {
 	routes    *RoutingTable
-	valuesDB  *db.DB
+	Storage   KademliaStorage
 	NetworkID string
 }
 
 func NewKademlia(self Contact, networkID string) *Kademlia {
 	ret := &Kademlia{
 		routes:    NewRoutingTable(self),
-		valuesDB:  nil,
+		Storage:  nil,
 		NetworkID: networkID,
 	}
-
-	hexID := hex.EncodeToString(self.ID[:])
-	conn, err := db.OpenFile(VALUES_DB_PATH+hexID, nil)
-	if err != nil {
-		log.Println(err)
-		panic("Unable to open values database")
-	}
-
-	defer conn.Close()
-	ret.valuesDB = conn
-
 	return ret
 }
 
