@@ -4,38 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/imatsko/kademlia"
-	"sync"
-	"github.com/syndtr/goleveldb/leveldb/errors"
 )
-
-
-type MapStorage struct {
-	sync.RWMutex
-	m map[kademlia.NodeID][]byte
-}
-
-func NewMapStorage() *MapStorage {
-	storage := &MapStorage{
-		m: make(map[kademlia.NodeID][]byte, 0),
-	}
-	return storage
-}
-
-func (storage *MapStorage) Get(key kademlia.NodeID) ([]byte, error) {
-	storage.RLock()
-	defer storage.RUnlock()
-	if v, ok := storage.m[key]; ok {
-		return v[:], nil
-	}
-	return nil, errors.New("Key not found")
-}
-
-func (storage *MapStorage) Put(key kademlia.NodeID, value []byte) error {
-	storage.Lock()
-	defer storage.Unlock()
-	storage.m[key] = value[:]
-	return nil
-}
 
 func parseFlags() (port *int, firstContact *kademlia.Contact, action bool, target string) {
 	port = flag.Int("port", 6000, "a int")
@@ -75,9 +44,11 @@ func main() {
 
 	selfNetwork := kademlia.NewKademlia(self, "Certcoin-DHT")
 
-	selfNetwork.Storage = NewMapStorage()
+	selfNetwork.Storage = kademlia.NewMapStorage()
+	selfNetwork.Network = kademlia.NewRPCNetwork()
 
-	selfNetwork.Serve()
+	nodeHandler := kademlia.NewRPCNode(selfNetwork)
+	nodeHandler.Serve(selfAddress)
 
 	if firstContact != nil {
 		fmt.Println("Start bootstrap")

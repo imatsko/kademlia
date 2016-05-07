@@ -1,12 +1,12 @@
 package kademlia
 
 type PingRequest struct {
-	RPCHeader
+	CallHeader
 }
 
 func (k *Kademlia) NewPingRequest() PingRequest {
 	return PingRequest{
-		RPCHeader{
+		CallHeader{
 			Sender:    k.routes.self,
 			NetworkID: k.NetworkID,
 		},
@@ -14,11 +14,11 @@ func (k *Kademlia) NewPingRequest() PingRequest {
 }
 
 type PingResponse struct {
-	RPCHeader
+	CallHeader
 }
 
 func (k *Kademlia) Ping(target Contact) error {
-	client, err := dialContact(target)
+	client, err := k.Network.Connect(target)
 	if err != nil {
 		return err
 	}
@@ -26,9 +26,9 @@ func (k *Kademlia) Ping(target Contact) error {
 	req := k.NewPingRequest()
 	res := PingResponse{}
 
-	return client.Call("KademliaCore.PingRPC", &req, &res)
+	return client.Ping(req, &res)
 }
 
-func (kc *KademliaCore) PingRPC(req PingRequest, res *PingResponse) error {
-	return kc.kad.HandleRPC(req.RPCHeader, &res.RPCHeader)
+func (k *Kademlia) PingHandler(req PingRequest, res *PingResponse) error {
+	return k.HandleCall(req.CallHeader, &res.CallHeader)
 }

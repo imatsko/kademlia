@@ -6,13 +6,13 @@ import (
 )
 
 type FindNodeRequest struct {
-	RPCHeader
+	CallHeader
 	Target NodeID
 }
 
 func (k *Kademlia) NewFindNodeRequest(target NodeID) FindNodeRequest {
 	return FindNodeRequest{
-		RPCHeader: RPCHeader{
+		CallHeader: CallHeader{
 			Sender:    k.routes.self,
 			NetworkID: k.NetworkID,
 		},
@@ -21,12 +21,12 @@ func (k *Kademlia) NewFindNodeRequest(target NodeID) FindNodeRequest {
 }
 
 type FindNodeResponse struct {
-	RPCHeader
+	CallHeader
 	Contacts Contacts
 }
 
 func (k *Kademlia) FindNode(contact Contact, target NodeID, done chan Contacts) {
-	client, err := dialContact(contact)
+	client, err := k.Network.Connect(contact)
 	if err != nil {
 		done <- nil
 		return
@@ -35,7 +35,7 @@ func (k *Kademlia) FindNode(contact Contact, target NodeID, done chan Contacts) 
 	req := k.NewFindNodeRequest(target)
 	res := FindNodeResponse{}
 
-	err = client.Call("KademliaCore.FindNodeRPC", &req, &res)
+	err = client.FindNode(req, &res)
 	if err != nil {
 		done <- nil
 		return
@@ -46,13 +46,12 @@ func (k *Kademlia) FindNode(contact Contact, target NodeID, done chan Contacts) 
 	done <- res.Contacts
 }
 
-func (kc *KademliaCore) FindNodeRPC(req FindNodeRequest, res *FindNodeResponse) error {
-	err := kc.kad.HandleRPC(req.RPCHeader, &res.RPCHeader)
+func (k *Kademlia) FindNodeHandler(req FindNodeRequest, res *FindNodeResponse) error {
+	err := k.HandleCall(req.CallHeader, &res.CallHeader)
 	if err != nil {
 		return err
 	}
-	res.Contacts = kc.kad.routes.FindClosest(req.Target, BucketSize)
-
+	res.Contacts = k.routes.FindClosest(req.Target, BucketSize)
 	return nil
 }
 

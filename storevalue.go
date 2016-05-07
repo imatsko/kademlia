@@ -1,14 +1,14 @@
 package kademlia
 
 type StoreValueRequest struct {
-	RPCHeader
+	CallHeader
 	Target NodeID
 	Value []byte
 }
 
 func (k *Kademlia) NewStoreValueRequest(target NodeID, value []byte) StoreValueRequest {
 	return StoreValueRequest{
-		RPCHeader: RPCHeader{
+		CallHeader: CallHeader{
 			Sender:    k.routes.self,
 			NetworkID: k.NetworkID,
 		},
@@ -18,12 +18,12 @@ func (k *Kademlia) NewStoreValueRequest(target NodeID, value []byte) StoreValueR
 }
 
 type StoreValueResponse struct {
-	RPCHeader
+	CallHeader
 	Contacts Contacts
 }
 
 func (k *Kademlia) StoreValue(contact Contact, target NodeID, value []byte) ([]Contact, error) {
-	client, err := dialContact(contact)
+	client, err := k.Network.Connect(contact)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (k *Kademlia) StoreValue(contact Contact, target NodeID, value []byte) ([]C
 	req := k.NewStoreValueRequest(target, value)
 	res := StoreValueResponse{}
 
-	err = client.Call("KademliaCore.StoreValueRPC", &req, &res)
+	err = client.StoreValue(req, &res)
 	if err != nil {
 		return nil, err
 	}
@@ -39,20 +39,20 @@ func (k *Kademlia) StoreValue(contact Contact, target NodeID, value []byte) ([]C
 	return res.Contacts, nil
 }
 
-func (kc *KademliaCore) StoreValueRPC(req StoreValueRequest, res *StoreValueResponse) error {
-	err := kc.kad.HandleRPC(req.RPCHeader, &res.RPCHeader)
+func (k *Kademlia) StoreValueHandler(req StoreValueRequest, res *StoreValueResponse) error {
+	err := k.HandleCall(req.CallHeader, &res.CallHeader)
 	if err != nil {
 		return err
 	}
 
-	p_err := kc.kad.Storage.Put(req.Target, req.Value[:])
+	p_err := k.Storage.Put(req.Target, req.Value[:])
 	if p_err != nil {
 		//log.Println(err)
 		//panic("Read from values database failed")
 		return p_err
 	}
 
-	res.Contacts = kc.kad.routes.FindClosest(req.Target, BucketSize)
+	res.Contacts = k.routes.FindClosest(req.Target, BucketSize)
 
 	return nil
 }

@@ -1,13 +1,13 @@
 package kademlia
 
 type FindValueRequest struct {
-	RPCHeader
+	CallHeader
 	Target NodeID
 }
 
 func (k *Kademlia) NewFindValueRequest(target NodeID) FindValueRequest {
 	return FindValueRequest{
-		RPCHeader: RPCHeader{
+		CallHeader: CallHeader{
 			Sender:    k.routes.self,
 			NetworkID: k.NetworkID,
 		},
@@ -16,13 +16,13 @@ func (k *Kademlia) NewFindValueRequest(target NodeID) FindValueRequest {
 }
 
 type FindValueResponse struct {
-	RPCHeader
+	CallHeader
 	Contacts Contacts
 	Value    []byte
 }
 
 func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, []byte, error) {
-	client, err := dialContact(contact)
+	client, err := k.Network.Connect(contact)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -30,7 +30,7 @@ func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, []byte,
 	req := k.NewFindValueRequest(target)
 	res := FindValueResponse{}
 
-	err = client.Call("KademliaCore.FindValueRPC", &req, &res)
+	err = client.FindValue(req, &res)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -38,13 +38,13 @@ func (k *Kademlia) FindValue(contact Contact, target NodeID) ([]Contact, []byte,
 	return res.Contacts, res.Value, nil
 }
 
-func (kc *KademliaCore) FindValueRPC(req FindValueRequest, res *FindValueResponse) error {
-	err := kc.kad.HandleRPC(req.RPCHeader, &res.RPCHeader)
+func (k *Kademlia) FindValueHandler(req FindValueRequest, res *FindValueResponse) error {
+	err := k.HandleCall(req.CallHeader, &res.CallHeader)
 	if err != nil {
 		return err
 	}
 
-	value, err := kc.kad.Storage.Get(req.Target)
+	value, err := k.Storage.Get(req.Target)
 	if err != nil {
 		//log.Println(err)
 		//panic("Read from values database failed")
@@ -56,7 +56,7 @@ func (kc *KademliaCore) FindValueRPC(req FindValueRequest, res *FindValueRespons
 		return nil
 	}
 
-	res.Contacts = kc.kad.routes.FindClosest(req.Target, BucketSize)
+	res.Contacts = k.routes.FindClosest(req.Target, BucketSize)
 
 	return nil
 }

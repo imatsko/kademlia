@@ -3,9 +3,6 @@ package kademlia
 import (
 	"errors"
 	"fmt"
-	"net"
-	"net/rpc"
-	"time"
 )
 
 type KademliaStorage interface {
@@ -13,9 +10,28 @@ type KademliaStorage interface {
 	Get(key NodeID) (value []byte, err error)
 }
 
+type KademliaNetwork interface {
+	Connect(contact Contact) (client KademliaClient, err error)
+}
+
+type KademliaClient interface {
+	FindNode(req FindNodeRequest, res *FindNodeResponse) error
+	FindValue(req FindValueRequest, res *FindValueResponse) error
+	Ping(req PingRequest, res *PingResponse) error
+	StoreValue(req StoreValueRequest, res *StoreValueResponse) error
+}
+
+type KademliaNodeHandler interface {
+	FindNodeHandler(req FindNodeRequest, res *FindNodeResponse) error
+	FindValueHandler(req FindValueRequest, res *FindValueResponse) error
+	PingHandler(req PingRequest, res *PingResponse) error
+	StoreValueHandler(req StoreValueRequest, res *StoreValueResponse) error
+}
+
 type Kademlia struct {
 	routes    *RoutingTable
 	Storage   KademliaStorage
+	Network   KademliaNetwork
 	NetworkID string
 }
 
@@ -28,14 +44,14 @@ func NewKademlia(self Contact, networkID string) *Kademlia {
 	return ret
 }
 
-// Generic RPC base
-type RPCHeader struct {
+// Generic call base
+type CallHeader struct {
 	Sender    Contact
 	NetworkID string
 }
 
-// Every RPC updates routing tables in Kademlia
-func (k *Kademlia) HandleRPC(request RPCHeader, response *RPCHeader) error {
+// Every call updates routing tables in Kademlia
+func (k *Kademlia) HandleCall(request CallHeader, response *CallHeader) error {
 	if request.NetworkID != k.NetworkID {
 		return errors.New(fmt.Sprintf("Expected Network ID %s, go %s", k.NetworkID, request.NetworkID))
 	}
@@ -46,35 +62,4 @@ func (k *Kademlia) HandleRPC(request RPCHeader, response *RPCHeader) error {
 	response.Sender = k.routes.self
 
 	return nil
-}
-
-func dialContact(contact Contact) (*rpc.Client, error) {
-	connection, err := net.DialTimeout("tcp", contact.Address, 5*time.Second)
-	if err != nil {
-		return nil, err
-	}
-
-	return rpc.NewClient(connection), nil
-}
-
-func (k *Kademlia) Serve() error {
-	rpc.Register(&KademliaCore{k})
-
-	l, err := net.Listen("tcp", k.routes.self.Address)
-	if err != nil {
-		return err
-	}
-
-	go rpc.Accept(l)
-
-	return nil
-}
-
-/*
- * KademliaCore
- * Handles RPC interactions between client/server
- */
-
-type KademliaCore struct {
-	kad *Kademlia
 }
